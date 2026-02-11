@@ -23,6 +23,12 @@ app.use((req, res, next) => {
 app.use('/weather', weatherRoute);
 app.use('/quake', quakeRoute);
 app.use('/disaster', disasterRoute);
+
+// Aliases for better UX (User Expectations)
+app.use('/flood', (req, res) => res.redirect('/disaster/flood'));
+app.use('/volcano', (req, res) => res.redirect('/disaster/volcano'));
+app.use('/tsunami', (req, res) => res.redirect('/disaster/tsunami'));
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 app.use(express.static(path.join(__dirname, '../public')));
 
