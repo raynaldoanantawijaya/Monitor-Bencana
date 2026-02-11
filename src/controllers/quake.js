@@ -18,4 +18,24 @@ const get = async (req, res) => {
   }
 };
 
-module.exports = { get };
+const getRecent = async (req, res) => {
+  try {
+    const response = await axios.get('https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json');
+    const quakes = response.data.Infogempa.gempa;
+    return res.status(200).send(responseCreator({ data: quakes }));
+  } catch (error) {
+    return res.status(500).send(responseCreator({ message: 'Something went wrong' }));
+  }
+};
+
+const getFelt = async (req, res) => {
+  try {
+    const response = await axios.get('https://data.bmkg.go.id/DataMKG/TEWS/gempadirasakan.json');
+    const quakes = response.data.Infogempa.gempa;
+    return res.status(200).send(responseCreator({ data: quakes }));
+  } catch (error) {
+    return res.status(500).send(responseCreator({ message: 'Something went wrong' }));
+  }
+};
+
+module.exports = { get, getRecent, getFelt };

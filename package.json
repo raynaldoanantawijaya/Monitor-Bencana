@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node .",
-    "dev": "nodemon ."
+    "dev": "nodemon .",
+    "test": "jest"
   },
   "keywords": [
     "BMKG",
@@ -14,20 +15,25 @@
     "prakiraan cuaca",
     "gempa terbaru"
   ],
-  "author": "Renova Muhamad Reza",
+  "author": "Van Helsing",
   "bugs": {
-    "url": "https://github.com/renomureza/cuaca-gempa-rest-api/issues"
+    "url": "https://github.com/raynaldoanantawijaya/Monitor-Bencana/issues"
   },
-  "homepage": "https://github.com/renomureza/cuaca-gempa-rest-api#readme",
+  "homepage": "https://github.com/raynaldoanantawijaya/Monitor-Bencana#readme",
   "license": "MIT",
   "dependencies": {
     "axios": "^0.21.1",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
+    "node-cache": "^5.1.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "xml-js": "^1.6.11"
   },
   "devDependencies": {
-    "nodemon": "^2.0.7"
+    "jest": "^30.2.0",
+    "nodemon": "^2.0.7",
+    "supertest": "^7.2.2"
   }
 }

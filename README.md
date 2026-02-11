@@ -1,401 +1,230 @@
-# REST API Cuaca & Gempa Terkini
+# 🌦️ Monitor Bencana — Indonesia Disaster & Weather Monitoring REST API
 
-> 🚨**Catatan**
-> 
-> Tautan ini https://cuaca-gempa-rest-api.vercel.app/ sewaktu-waktu bisa dimatikan karena batasan Vercel, silakan deploy menggunakan akun Vercel sendiri. 
+> **Created & Maintained by Van Helsing**
 
-REST API prakiraan cuaca, suhu udara, kelembapan udara, kecepatan angin, dan arah angin untuk kota-kota besar di **34 provinsi** di Indonesia dalam waktu **3 harian** dan gempa terbaru dengan format JSON yang lebih ramah.
+REST API lengkap untuk pemantauan **cuaca**, **gempa bumi**, **kualitas udara**, **banjir**, dan **aktivitas vulkanik** di Indonesia. Dirancang untuk integrasi mudah ke website Karang Taruna, portal desa, dan aplikasi publik lainnya.
 
-Sumber: [Data Terbuka BMKG](https://data.bmkg.go.id/).
+---
 
-## DEMO
+## ✨ Fitur Lengkap
 
-[https://cuaca-gempa-rest-api.vercel.app](https://cuaca-gempa-rest-api.vercel.app)
+### 🌡️ Prakiraan Cuaca (Open-Meteo)
+- Suhu real-time & prakiraan 24 jam
+- Kelembapan udara, kecepatan & arah angin
+- Weather code untuk ikon cuaca
+- Pencarian kota otomatis (Geocoding)
 
-## Command
+### 🌍 Gempa Bumi (BMKG)
+- Data gempa terbaru (autogempa)
+- Daftar gempa terkini (`/quake/recent`) — 15 gempa terakhir
+- Gempa dirasakan (`/quake/felt`) — gempa yang dilaporkan masyarakat
+- Shakemap image (peta intensitas guncangan)
 
-- `npm start` - run server.
-- `npm run dev` - run dev server.
+### 💨 Kualitas Udara / Air Quality Index (AQI)
+- **Data Satelit (Global)**: AQI, PM2.5, PM10 dari Open-Meteo (model CAMS)
+- **Data Presisi (Ground Station)**: Data real-time dari Stasiun Solo Manahan (KLHK) untuk area Surakarta via WAQI API
+- Indikator warna otomatis (Baik → Berbahaya)
 
-## Gempa
+### 🌊 Pemantauan Banjir (PetaBencana.id)
+- Peta banjir real-time embedded
+- Selector regional: Jakarta, Surakarta, Jawa Tengah, Semarang, dll.
 
-**Endpoint**
+### 🌋 Pemantauan Gunung Api (MAGMA Indonesia)
+- Status aktivitas vulkanik terbaru embedded dari MAGMA ESDM
 
-`/quake`
+### 📍 Geolocation Support
+- Endpoint khusus `/weather/coords/:lat/:lon` untuk integrasi "Lacak Lokasi Saya"
+- Langsung pakai koordinat dari browser tanpa perlu cari nama kota
 
-**Response**
+### 🛡️ Infrastruktur
+- **CORS enabled** — siap diakses dari domain manapun
+- **Caching** (Node-Cache) — mengurangi beban API upstream
+- **Retry mechanism** — otomatis retry jika API sumber gagal
+- **Swagger Documentation** — dokumentasi interaktif di `/api-docs`
+- **Unit Testing** (Jest) — test otomatis untuk endpoint
+- **Vercel-ready** — konfigurasi deploy satu klik
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone repository
+git clone https://github.com/raynaldoanantawijaya/Monitor-Bencana.git
+
+# Install dependencies
+npm install
+
+# Run server
+npm start
+
+# Run dev server (auto-reload)
+npm run dev
+```
+
+Server berjalan di `http://localhost:3000`
+
+---
+
+## 📡 API Endpoints
+
+### Gempa Bumi
+
+| Endpoint | Deskripsi |
+|---|---|
+| `GET /quake` | Gempa terbaru (autogempa) + shakemap |
+| `GET /quake/recent` | 15 gempa terkini |
+| `GET /quake/felt` | Gempa yang dirasakan masyarakat |
+
+### Cuaca & Kualitas Udara
+
+| Endpoint | Deskripsi |
+|---|---|
+| `GET /weather/:province` | Prakiraan cuaca per provinsi |
+| `GET /weather/:province/:city` | Cuaca + AQI untuk kota spesifik |
+| `GET /weather/coords/:lat/:lon` | Cuaca + AQI berdasarkan koordinat GPS |
+
+### Dokumentasi
+
+| Endpoint | Deskripsi |
+|---|---|
+| `GET /api-docs` | Swagger UI (dokumentasi interaktif) |
+
+---
+
+## 📋 Contoh Response
+
+### Cuaca per Kota (`/weather/jawa-tengah/surakarta`)
 
 ```json
 {
   "success": true,
-  "message": null,
   "data": {
-    "tanggal": "08 Jun 2021",
+    "description": "Surakarta",
+    "admin1": "Central Java",
+    "coordinate": "110.83 -7.57",
+    "current_weather": {
+      "temperature": 28.5,
+      "windspeed": 12.3,
+      "winddirection": 180,
+      "weathercode": 3
+    },
+    "hourly": {
+      "time": ["2026-02-11T00:00", "..."],
+      "temperature_2m": [25.1, "..."],
+      "weathercode": [1, "..."]
+    },
+    "air_quality": {
+      "pm10": [45, "..."],
+      "pm2_5": [22, "..."],
+      "us_aqi": [55, "..."]
+    },
+    "precision_aqi": {
+      "source": "Monitor Station Solo Manahan (KLHK)",
+      "aqi": 41,
+      "pm2_5": 9.6,
+      "pm10": 21.3,
+      "time": "2026-02-11 09:00:00"
+    }
+  }
+}
+```
+
+### Cuaca via Koordinat (`/weather/coords/-7.575/110.824`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "description": "Location (-7.575, 110.824)",
+    "coordinate": "110.824 -7.575",
+    "current_weather": { "..." },
+    "hourly": { "..." },
+    "air_quality": { "..." }
+  }
+}
+```
+
+### Gempa Terbaru (`/quake`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "tanggal": "11 Feb 2026",
     "jam": "12:00:34 WIB",
-    "datetime": "2021-06-08T05:00:34+00:00",
     "coordinates": "0.35,123.75",
-    "lintang": "0.35 LU",
-    "bujur": "123.75 BT",
     "magnitude": "5.3",
     "kedalaman": "185 km",
     "wilayah": "Pusat gempa berada di darat 26 km BaratDaya Bolaanguki",
     "potensi": "Gempa ini dirasakan untuk diteruskan pada masyarakat",
-    "dirasakan": "II Bolaang Mongondow Selatan",
-    "shakemap": "https://data.bmkg.go.id/DataMKG/TEWS/20210608120034.mmi.jpg"
+    "shakemap": "https://data.bmkg.go.id/DataMKG/TEWS/..."
   }
 }
 ```
 
-## Cuaca
+---
 
-### Provinsi
+## 🔌 Integrasi ke Website (Contoh)
 
-**Endpoint:**
+### Geolocation — "Lacak Lokasi Saya"
 
-`/{provinsi}`
-
-> :warning: Gunakan `/dki-jakarta` dan `di-yogyakarta` untuk Provinsi DKI Jakarta dan DI Yogyakarta.
-
-**Contoh:**
-
-`/jawa-barat`
-
-**Response**
-
-```json
-{
-  "success": true,
-  "message": null,
-  "data": {
-    "issue": {
-      "timestamp": "20210608025054",
-      "year": "2021",
-      "month": "06",
-      "day": "08",
-      "hour": "02",
-      "minute": "50",
-      "second": "54"
-    },
-    "areas": [
-      {
-        "id": "501212",
-        "latitude": "-6.90992",
-        "longitude": "107.64691",
-        "coordinate": "107.64691 -6.90992",
-        "type": "land",
-        "region": "",
-        "level": "1",
-        "description": "Bandung",
-        "domain": "Jawa Barat",
-        "tags": "",
-        "params": [
-          {
-            "id": "hu",
-            "description": "Humidity",
-            "type": "hourly",
-            "times": [
-              {
-                "type": "hourly",
-                "h": "0",
-                "datetime": "202106080000",
-                "value": "70 %"
-              }
-              // ....
-            ]
-          },
-          {
-            "id": "humax",
-            "description": "Max humidity",
-            "type": "daily",
-            "times": [
-              {
-                "type": "daily",
-                "day": "20210608",
-                "datetime": "202106081200",
-                "value": "90 %"
-              }
-              //....
-            ]
-          },
-          {
-            "id": "tmax",
-            "description": "Max temperature",
-            "type": "daily",
-            "times": [
-              {
-                "type": "daily",
-                "day": "20210608",
-                "datetime": "202106081200",
-                "celcius": "30 C",
-                "fahrenheit": "86 F"
-              }
-              //...
-            ]
-          },
-          {
-            "id": "humin",
-            "description": "Min humidity",
-            "type": "daily",
-            "times": [
-              {
-                "type": "daily",
-                "day": "20210608",
-                "datetime": "202106081200",
-                "value": "50 %"
-              }
-              //...
-            ]
-          },
-          {
-            "id": "tmin",
-            "description": "Min temperature",
-            "type": "daily",
-            "times": [
-              {
-                "type": "daily",
-                "day": "20210608",
-                "datetime": "202106081200",
-                "celcius": "20 C",
-                "fahrenheit": "68 F"
-              }
-              //...
-            ]
-          },
-          {
-            "id": "t",
-            "description": "Temperature",
-            "type": "hourly",
-            "times": [
-              {
-                "type": "hourly",
-                "h": "0",
-                "datetime": "202106080000",
-                "celcius": "25 C",
-                "fahrenheit": "77 F"
-              }
-              //...
-            ]
-          },
-          {
-            "id": "weather",
-            "description": "Weather",
-            "type": "hourly",
-            "times": [
-              {
-                "type": "hourly",
-                "h": "0",
-                "datetime": "202106080000",
-                "code": "1",
-                "name": "Cerah Berawan"
-              }
-              //...
-            ]
-          },
-          {
-            "id": "wd",
-            "description": "Wind direction",
-            "type": "hourly",
-            "times": [
-              {
-                "type": "hourly",
-                "h": "0",
-                "datetime": "202106080000",
-                "deg": "135",
-                "card": "SE",
-                "sexa": "13500"
-              }
-              //...
-            ]
-          },
-          {
-            "id": "ws",
-            "description": "Wind speed",
-            "type": "hourly",
-            "times": [
-              {
-                "type": "hourly",
-                "h": "0",
-                "datetime": "202106080000",
-                "kt": "5",
-                "mph": "5.75389725",
-                "kph": "9.26",
-                "ms": "2.57222222"
-              }
-              //...
-            ]
-          }
-        ]
-      }
-      //...
-    ]
-  }
-}
+```javascript
+navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude, longitude } = pos.coords;
+    const res = await fetch(`https://YOUR_API_URL/weather/coords/${latitude}/${longitude}`);
+    const data = await res.json();
+    
+    // Tampilkan di UI
+    document.getElementById('suhu').textContent = data.data.current_weather.temperature + '°C';
+    document.getElementById('aqi').textContent = data.data.air_quality.us_aqi[0];
+});
 ```
 
-### Kota
+### Fetch Gempa Terkini
 
-**Endpoint:**
+```javascript
+const res = await fetch('https://YOUR_API_URL/quake/recent');
+const gempa = await res.json();
 
-`/{provinsi}/{kota}`
-
-**Contoh:**
-
-`/jawa-barat/bandung`
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": null,
-  "data": {
-    "id": "501212",
-    "latitude": "-6.90992",
-    "longitude": "107.64691",
-    "coordinate": "107.64691 -6.90992",
-    "type": "land",
-    "region": "",
-    "level": "1",
-    "description": "Bandung",
-    "domain": "Jawa Barat",
-    "tags": "",
-    "params": [
-      {
-        "id": "hu",
-        "description": "Humidity",
-        "type": "hourly",
-        "times": [
-          {
-            "type": "hourly",
-            "h": "0",
-            "datetime": "202106080000",
-            "value": "70 %"
-          }
-          //..
-        ]
-      },
-      {
-        "id": "humax",
-        "description": "Max humidity",
-        "type": "daily",
-        "times": [
-          {
-            "type": "daily",
-            "day": "20210608",
-            "datetime": "202106081200",
-            "value": "90 %"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "tmax",
-        "description": "Max temperature",
-        "type": "daily",
-        "times": [
-          {
-            "type": "daily",
-            "day": "20210608",
-            "datetime": "202106081200",
-            "celcius": "30 C",
-            "fahrenheit": "86 F"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "humin",
-        "description": "Min humidity",
-        "type": "daily",
-        "times": [
-          {
-            "type": "daily",
-            "day": "20210608",
-            "datetime": "202106081200",
-            "value": "50 %"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "tmin",
-        "description": "Min temperature",
-        "type": "daily",
-        "times": [
-          {
-            "type": "daily",
-            "day": "20210608",
-            "datetime": "202106081200",
-            "celcius": "20 C",
-            "fahrenheit": "68 F"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "t",
-        "description": "Temperature",
-        "type": "hourly",
-        "times": [
-          {
-            "type": "hourly",
-            "h": "0",
-            "datetime": "202106080000",
-            "celcius": "25 C",
-            "fahrenheit": "77 F"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "weather",
-        "description": "Weather",
-        "type": "hourly",
-        "times": [
-          {
-            "type": "hourly",
-            "h": "0",
-            "datetime": "202106080000",
-            "code": "1",
-            "name": "Cerah Berawan"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "wd",
-        "description": "Wind direction",
-        "type": "hourly",
-        "times": [
-          {
-            "type": "hourly",
-            "h": "0",
-            "datetime": "202106080000",
-            "deg": "135",
-            "card": "SE",
-            "sexa": "13500"
-          }
-          //...
-        ]
-      },
-      {
-        "id": "ws",
-        "description": "Wind speed",
-        "type": "hourly",
-        "times": [
-          {
-            "type": "hourly",
-            "h": "0",
-            "datetime": "202106080000",
-            "kt": "5",
-            "mph": "5.75389725",
-            "kph": "9.26",
-            "ms": "2.57222222"
-          }
-          //...
-        ]
-      }
-    ]
-  }
-}
+gempa.data.forEach(g => {
+    console.log(`M${g.magnitude} - ${g.wilayah}`);
+});
 ```
+
+---
+
+## 📦 Sumber Data
+
+| Data | Sumber | Tipe |
+|---|---|---|
+| Gempa Bumi | [BMKG Open Data](https://data.bmkg.go.id/) | XML → JSON |
+| Prakiraan Cuaca | [Open-Meteo API](https://open-meteo.com/) | REST API |
+| Kualitas Udara (Satelit) | [Open-Meteo Air Quality](https://open-meteo.com/) | REST API |
+| Kualitas Udara (Presisi) | [WAQI / AQICN](https://waqi.info/) | REST API |
+| Peta Banjir | [PetaBencana.id](https://petabencana.id/) | Embedded Map |
+| Aktivitas Vulkanik | [MAGMA Indonesia](https://magma.esdm.go.id/) | Embedded Page |
+
+---
+
+## 🛠️ Tech Stack
+
+- **Runtime**: Node.js + Express.js
+- **Data Sources**: BMKG, Open-Meteo, WAQI, PetaBencana, MAGMA
+- **Caching**: Node-Cache
+- **Documentation**: Swagger/OpenAPI
+- **Testing**: Jest
+- **Frontend**: HTML5 + Vanilla JS + Leaflet.js
+- **Deployment**: Vercel-ready
+
+---
+
+## 📄 Lisensi
+
+MIT License
+
+---
+
+> **Enhanced with ❤️ by Van Helsing**
+> 
+> *Dibuat untuk mendukung website Karang Taruna dan masyarakat Indonesia.*

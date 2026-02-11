@@ -4,6 +4,10 @@ const weatherRoute = require('./routes/weather');
 const quakeRoute = require('./routes/quake');
 const responseCreator = require('./utils/responseCreator');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const specs = require('./swagger');
+const express = require('express');
+const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || '';
@@ -17,11 +21,14 @@ app.use((req, res, next) => {
 
 app.use('/weather', weatherRoute);
 app.use('/quake', quakeRoute);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/', (req, res) => {
   return res.status(200).send({
-    maintainer: 'Renova Muhamad Reza',
-    source: 'https://github.com/renomureza/cuaca-gempa-rest-api',
+    maintainer: 'Van Helsing',
+    source: 'https://github.com/raynaldoanantawijaya/Monitor-Bencana',
+    documentation: `${BASE_URL}/api-docs`,
     endpoint: {
       quake: `${BASE_URL}/quake`,
       weather: {
@@ -40,6 +47,10 @@ app.all('*', (req, res) => {
   return res.status(404).send(responseCreator({ message: 'Not found' }));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

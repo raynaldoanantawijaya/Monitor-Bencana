@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMKG Weather & Quake Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .info-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #weather-result {
+            margin-top: 15px;
+        }
+
+        .weather-hour {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+
+        select,
+        input {
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 200px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        /* Previous styles remain */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .nav-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            background: #eee;
+        }
+
+        .nav-tab.active {
+            background: white;
+            border-color: #ddd;
+            border-bottom-color: white;
+            font-weight: bold;
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        iframe {
+            width: 100%;
+            border: none;
+            border-radius: 8px;
+            height: 600px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>BMKG Data Dashboard</h1>
+
+        <div class="nav-tabs">
+            <div class="nav-tab active" onclick="switchTab('dashboard')">Dashboard Gempa & Cuaca</div>
+            <div class="nav-tab" onclick="switchTab('flood')">Peta Banjir (Live)</div>
+            <div class="nav-tab" onclick="switchTab('volcano')">Gunung Api (Live)</div>
+        </div>
+
+        <!-- Tab 1: Dashboard -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="card">
+                <h2>Gempa Terkini</h2>
+                <div id="quake-info" class="info-grid">
+                    <p>Loading...</p>
+                </div>
+
+                <div id="map" style="height: 300px; margin-top: 15px; border-radius: 5px; z-index: 1;"></div>
+                <div id="shakemap-container" style="margin-top: 15px; text-align: center;"></div>
+
+                <br>
+                <button onclick="fetchQuake()">Refresh Gempa</button>
+            </div>
+
+            <div class="card">
+                <h2>Gempa Terkini (M 5.0+)</h2>
+                <div id="recent-quake-list" style="max-height: 200px; overflow-y: auto;">
+                    <p>Loading...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Gempa Dirasakan</h2>
+                <div id="felt-quake-list" style="max-height: 200px; overflow-y: auto;">
+                    <p>Loading...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Cek Cuaca Kota</h2>
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="province-input" placeholder="Provinsi (contoh: jawa-barat)"
+                        value="jawa-barat">
+                    <input type="text" id="city-input" placeholder="Kota (contoh: bandung)" value="bandung">
+                    <button onclick="fetchWeather()">Cek Cuaca</button>
+                </div>
+                <div id="weather-result"></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Flood -->
+        <div id="tab-flood" class="tab-content">
+            <div class="card">
+                <h2>Monitor Banjir (PetaBencana.id)</h2>
+                <div style="margin-bottom: 20px; text-align: center;">
+                    <label for="flood-region">Pilih Wilayah: </label>
+                    <select id="flood-region" onchange="changeFloodMap()">
+                        <option value="jakarta">Jakarta</option>
+                        <option value="jawa-tengah">Jawa Tengah</option>
+                        <option value="surakarta" selected>Surakarta</option>
+                        <option value="yogyakarta">Yogyakarta</option>
+                        <option value="jawa-timur">Jawa Timur</option>
+                        <option value="semarang">Semarang</option>
+                        <option value="id">Seluruh Indonesia</option>
+                    </select>
+                </div>
+                <iframe id="flood-frame" src="https://petabencana.id/map/surakarta" title="Peta Bencana"></iframe>
+                <p style="text-align: center; margin-top: 10px;">
+                    <small>Source: <a href="https://petabencana.id" target="_blank">PetaBencana.id</a></small>
+                </p>
+            </div>
+        </div>
+
+        <!-- Tab 3: Volcano -->
+        <div id="tab-volcano" class="tab-content">
+            <div class="card">
+                <h2>Monitor Gunung Api (MAGMA Indonesia)</h2>
+                <iframe src="https://magma.vsi.esdm.go.id/" title="MAGMA Indonesia"></iframe>
+                <p style="text-align: center; margin-top: 10px;">
+                    <small>Source: <a href="https://magma.vsi.esdm.go.id/" target="_blank">MAGMA Indonesia</a></small>
+                </p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #777;">
+            Data provided by <a href="https://data.bmkg.go.id/" target="_blank">BMKG Open Data</a> via <a
+                href="/api-docs">API Documentation</a>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
