@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('express')();
 const weatherRoute = require('./routes/weather');
 const quakeRoute = require('./routes/quake');
+const disasterRoute = require('./routes/disaster');
 const responseCreator = require('./utils/responseCreator');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
@@ -21,6 +22,7 @@ app.use((req, res, next) => {
 
 app.use('/weather', weatherRoute);
 app.use('/quake', quakeRoute);
+app.use('/disaster', disasterRoute);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 app.use(express.static(path.join(__dirname, '../public')));
 
