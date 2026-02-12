@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const responseCreator = require('../utils/responseCreator');
+const topojson = require('topojson-client');
 
 // --- Helper Functions ---
 
@@ -20,6 +21,16 @@ const mapFloodLevel = (level) => {
         case 3: return "Siaga";
         case 4: return "Awas";
         default: return "Info";
+    }
+};
+
+const mapFloodDepth = (level) => {
+    switch (parseInt(level)) {
+        case 1: return "10 - 70 cm";
+        case 2: return "10 - 70 cm";
+        case 3: return "71 - 150 cm";
+        case 4: return "> 150 cm";
+        default: return "Tidak ada data";
     }
 };
 
@@ -54,8 +65,7 @@ const getVolcanoStatus = async (req, res) => {
         { name: 'Gunung Merapi', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/merapi' },
         { name: 'Gunung Semeru', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/semeru' },
         { name: 'Gunung Anak Krakatau', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/anak-krakatau' },
-        { name: 'Gunung Sinabung', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/sinabung' },
-        { name: 'Gunung Ili Lewotolok', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/ili-lewotolok' }
+        { name: 'Gunung Sinabung', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/sinabung' }
     ];
 
     try {
@@ -84,13 +94,13 @@ const getVolcanoStatus = async (req, res) => {
 
         return res.status(200).send(responseCreator({
             data: fallback,
-            message: 'Data realtime tidak terbaca (struktur web berubah). Menampilkan link resmi.'
+            message: 'Data realtime tidak terbaca. Fallback link active.'
         }));
 
     } catch (e) {
         return res.status(200).send(responseCreator({
             data: fallback,
-            message: 'Gagal mengambil data MAGMA. Menampilkan link resmi.'
+            message: 'Gagal mengambil data MAGMA.'
         }));
     }
 };
@@ -114,42 +124,83 @@ const getFloodReports = async (req, res) => {
             const url = `https://data.petabencana.id/floods?admin=${region.code}&minimum_state=1&format=json`;
             const { data } = await axios.get(url);
 
-            // Logic to handle TopoJSON or GeoJSON structure
+            // Handle PetaBencana Wrapper
+            const topology = data.result ? data.result : data;
+
             let features = [];
 
-            // Setup for GeoJSON
-            if (data.result && data.result.features) {
-                features = data.result.features;
+            // Check for TopoJSON
+            if (topology.type === 'Topology') {
+                // Try to guess the object key if 'output' is missing
+                let objKey = 'output';
+                if (!topology.objects[objKey]) {
+                    objKey = Object.keys(topology.objects)[0]; // Fallback to first key
+                }
+
+                if (objKey && topology.objects[objKey]) {
+                    const fc = topojson.feature(topology, topology.objects[objKey]);
+                    features = fc.features;
+                } else {
+                    throw new Error(`TopoJSON objects empty or key mismatch. Keys: ${Object.keys(topology.objects)}`);
+                }
             }
-            // Setup for TopoJSON (common in PetaBencana)
-            else if (data.result && data.result.objects && data.result.objects.output && data.result.objects.output.geometries) {
-                features = data.result.objects.output.geometries;
+            else if (topology.type === 'FeatureCollection') {
+                features = topology.features;
+            }
+            // Legacy/Fallback check if wrapper was bare but structure differed
+            else if (data.result && data.result.features) {
+                features = data.result.features;
             }
 
             // Extract useful info
             features.forEach(f => {
                 const props = f.properties || {};
-                // Filter out empty reports if needed, but 'minimum_state=1' implies some activity/report
+
+                let locationName = props.name || props.text || "Lokasi tidak spesifik";
+
+                if (locationName === "Lokasi tidak spesifik") {
+                    if (props.kelurahan) locationName = `Kel. ${props.kelurahan}`;
+                    else if (props.RW_admin) locationName = `Zona RW ${props.RW_admin} (ID: ${props.pkey || props.area_id})`;
+                    else if (props.area_id) locationName = `Area ID: ${props.area_id}`;
+                }
+
+                // Extract coordinates (Centroid approximation)
+                let coords = null;
+                if (f.geometry) {
+                    let ring = [];
+                    if (f.geometry.type === 'Polygon') ring = f.geometry.coordinates[0];
+                    else if (f.geometry.type === 'MultiPolygon') ring = f.geometry.coordinates[0][0];
+
+                    if (ring && ring.length > 0) {
+                        coords = {
+                            lat: ring[0][1],
+                            lon: ring[0][0]
+                        };
+                    }
+                }
+
                 allReports.push({
                     region: region.name,
-                    title: props.title || props.text || "Laporan Banjir",
-                    location: props['Kelurahan/Village'] || props.rem_kelurahan_name || "Lokasi tidak spesifik",
+                    title: props.title || `Laporan Banjir - ${locationName}`,
+                    location: locationName,
                     status: mapFloodLevel(props.state),
-                    height_desc: props.height || "Tidak ada data tinggi air",
+                    height_desc: props.height ? `${props.height} cm` : mapFloodDepth(props.state),
+                    coordinates: coords,
                     updated_at: props.created_at || new Date().toISOString()
                 });
             });
 
         } catch (e) {
+            console.error(`Error ${region.name}:`, e.message);
             errors.push(`${region.name}: ${e.message}`);
         }
     }));
 
-    // If no reports found at all
     if (allReports.length === 0) {
         return res.status(200).send(responseCreator({
             data: [],
-            message: 'Tidak ada laporan banjir aktif saat ini di wilayah terpilih. (Atau sumber data tidak merespon).'
+            message: 'Tidak ada laporan banjir aktif saat ini.',
+            errors: errors // EXPOSE ERRORS FOR DEBUGGING
         }));
     }
 
@@ -157,7 +208,8 @@ const getFloodReports = async (req, res) => {
         data: allReports,
         meta: {
             scanned_regions: regions.map(r => r.name),
-            total_reports: allReports.length
+            total_reports: allReports.length,
+            note: "Nama lokasi menggunakan ID Area karena API PetaBencana tidak menyediakan nama Kelurahan secara publik."
         }
     }));
 };
