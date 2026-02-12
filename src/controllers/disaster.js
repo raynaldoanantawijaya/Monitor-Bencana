@@ -110,6 +110,7 @@ const getFloodReports = async (req, res) => {
         { code: 'ID-JK', name: 'Jakarta' },
         { code: 'ID-JB', name: 'Jawa Barat' },
         { code: 'ID-JT', name: 'Jawa Tengah' },
+        { code: 'ID-JT-72', name: 'Kota Surakarta' }, // Added per request
         { code: 'ID-JI', name: 'Jawa Timur' },
         { code: 'ID-YO', name: 'Yogyakarta' },
         { code: 'ID-BT', name: 'Banten' }
