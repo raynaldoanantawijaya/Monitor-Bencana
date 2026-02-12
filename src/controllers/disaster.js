@@ -3,7 +3,7 @@ const axios = require('axios');
 const responseCreator = require('../utils/responseCreator');
 const topojson = require('topojson-client');
 
-// --- Helper Functions ---
+// --- Helper Functions (Exported for Reuse) ---
 
 const getQuakeData = async () => {
     try {
@@ -57,78 +57,8 @@ const mapWeatherCode = (code) => {
     return "Tidak Diketahui";
 };
 
-// --- Controllers ---
-
-const getTsunamiStatus = async (req, res) => {
-    try {
-        const gempa = await getQuakeData();
-        const potensi = gempa.Potensi || "";
-        const isTsunami = potensi.toLowerCase().includes('tsunami') && !potensi.toLowerCase().includes('tidak berpotensi');
-
-        const data = {
-            status: isTsunami ? 'WARNING' : 'NORMAL',
-            description: potensi,
-            gempa_terkait: {
-                magnitude: gempa.Magnitude,
-                wilayah: gempa.Wilayah,
-                jam: gempa.Jam,
-                tanggal: gempa.Tanggal,
-                coordinates: gempa.Coordinates
-            }
-        };
-
-        return res.status(200).send(responseCreator({ data }));
-    } catch (error) {
-        return res.status(500).send(responseCreator({ message: 'Gagal mengambil data Tsunami' }));
-    }
-};
-
-const getVolcanoStatus = async (req, res) => {
-    const fallback = [
-        { name: 'Gunung Merapi', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/merapi' },
-        { name: 'Gunung Semeru', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/semeru' },
-        { name: 'Gunung Anak Krakatau', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/anak-krakatau' },
-        { name: 'Gunung Sinabung', status: 'Cek Link', link: 'https://magma.esdm.go.id/v1/gunung-api/laporan/sinabung' }
-    ];
-
-    try {
-        const { data } = await axios.get('https://magma.esdm.go.id/v1/gunung-api/tingkat-aktivitas');
-        const $ = cheerio.load(data);
-        const volcanoes = [];
-
-        $('div.col-md-3, div.col-sm-6').each((i, el) => {
-            const text = $(el).text();
-            if (text.includes('Level')) {
-                const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-                const name = lines[0] || "Unknown Volcano";
-                const statusLine = lines.find(l => l.includes('Level')) || "Unknown Status";
-
-                volcanoes.push({
-                    name: name,
-                    status: statusLine,
-                    link: 'https://magma.esdm.go.id/v1/gunung-api/tingkat-aktivitas'
-                });
-            }
-        });
-
-        if (volcanoes.length > 0) {
-            return res.status(200).send(responseCreator({ data: volcanoes }));
-        }
-
-        return res.status(200).send(responseCreator({
-            data: fallback,
-            message: 'Data realtime tidak terbaca. Fallback link active.'
-        }));
-
-    } catch (e) {
-        return res.status(200).send(responseCreator({
-            data: fallback,
-            message: 'Gagal mengambil data MAGMA.'
-        }));
-    }
-};
-
-const getFloodReports = async (req, res) => {
+// Reusable Flood Fetcher
+const getFloodData = async () => {
     const regions = [
         { code: 'ID-JK', name: 'Jakarta', lat: -6.2088, lon: 106.8456 },
         { code: 'ID-JB', name: 'Jawa Barat', lat: -6.9175, lon: 107.6191 },
@@ -165,7 +95,8 @@ const getFloodReports = async (req, res) => {
                     const fc = topojson.feature(topology, topology.objects[objKey]);
                     features = fc.features;
                 } else {
-                    throw new Error(`TopoJSON objects empty or key mismatch. Keys: ${Object.keys(topology.objects)}`);
+                    // throw new Error(`TopoJSON objects empty or key mismatch. Keys: ${Object.keys(topology.objects)}`);
+                    // Don't throw, just skip region
                 }
             }
             else if (topology.type === 'FeatureCollection') {
@@ -197,7 +128,7 @@ const getFloodReports = async (req, res) => {
 
                     if (ring && ring.length > 0) {
                         coords = {
-                            lat: ring[0][1],
+                            lat: ring[0][1], // Note: PetaBencana usually uses [lon, lat]
                             lon: ring[0][0]
                         };
                     }
@@ -235,13 +166,45 @@ const getFloodReports = async (req, res) => {
         }
     }));
 
+    return { allReports, errors, regions: regions.map(r => r.name) };
+};
+
+// --- Controllers ---
+
+const getTsunamiStatus = async (req, res) => {
+    try {
+        const gempa = await getQuakeData();
+        const potensi = gempa.Potensi || "";
+        const isTsunami = potensi.toLowerCase().includes('tsunami') && !potensi.toLowerCase().includes('tidak berpotensi');
+
+        const data = {
+            status: isTsunami ? 'WARNING' : 'NORMAL',
+            description: potensi,
+            gempa_terkait: {
+                magnitude: gempa.Magnitude,
+                wilayah: gempa.Wilayah,
+                jam: gempa.Jam,
+                tanggal: gempa.Tanggal,
+                coordinates: gempa.Coordinates
+            }
+        };
+
+        return res.status(200).send(responseCreator({ data }));
+    } catch (error) {
+        return res.status(500).send(responseCreator({ message: 'Gagal mengambil data Tsunami' }));
+    }
+};
+
+const getFloodReports = async (req, res) => {
+    const { allReports, errors, regions } = await getFloodData();
+
     if (allReports.length === 0) {
         return res.status(200).send(responseCreator({
             data: [],
             message: 'Tidak ada laporan banjir aktif saat ini.',
             errors: errors,
             meta: {
-                scanned_regions: regions.map(r => r.name),
+                scanned_regions: regions,
                 total_reports: 0
             }
         }));
@@ -250,11 +213,17 @@ const getFloodReports = async (req, res) => {
     return res.status(200).send(responseCreator({
         data: allReports,
         meta: {
-            scanned_regions: regions.map(r => r.name),
+            scanned_regions: regions,
             total_reports: allReports.length,
             note: "Data ketinggian spesifik menggunakan estimasi dari status siaga jika laporan warga tidak tersedia. Data cuaca disertakan sebagai penopang."
         }
     }));
 };
 
-module.exports = { getTsunamiStatus, getFloodReports };
+module.exports = {
+    getTsunamiStatus,
+    getFloodReports,
+    // Exports for Nearby Controller
+    getQuakeData,
+    getFloodData
+};
