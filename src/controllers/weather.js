@@ -3,31 +3,8 @@ const { searchCity, getWeather, getAirQuality } = require('../utils/openMeteo');
 const { getStationAQI } = require('../utils/waqi');
 const responseCreator = require('../utils/responseCreator');
 
-const getByProvince = async (req, res) => {
-  const { province } = req.params;
-
-  try {
-    const data = await getWeather(province);
-
-    return res
-      .status(200)
-      .send(responseCreator({ data }));
-  } catch (error) {
-    console.error("Error in getByProvince:", error.message);
-
-    if (error.response && error.response.status === 404) {
-      return res.status(404).send(responseCreator({ message: 'Not found' }));
-    }
-
-    if (error.message.includes('Received HTML') || error.message.includes('timeout')) {
-      return res.status(503).send(responseCreator({ message: 'Service Unavailable: Upstream BMKG API blocked the request or timed out.' }));
-    }
-
-    return res
-      .status(500)
-      .send(responseCreator({ message: 'Something went wrong' }));
-  }
-};
+// getByProvince removed as per user request (Lightweight API)
+// const getByProvince = ...
 
 const getByCity = async (req, res) => {
   const { province, city } = req.params; // 'province' is kept for URL compatibility but unused by Open-Meteo
@@ -138,4 +115,4 @@ const getByCoordinates = async (req, res) => {
   }
 };
 
-module.exports = { getByProvince, getByCity, getByCoordinates };
+module.exports = { getByCity, getByCoordinates };

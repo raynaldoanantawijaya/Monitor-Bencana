@@ -28,24 +28,7 @@ const controller = require('../controllers/weather');
  */
 router.get('/coords/:lat/:lon', controller.getByCoordinates);
 
-/**
- * @swagger
- * /weather/{province}:
- *   get:
- *     summary: Get weather forecast by province
- *     description: Returns weather forecast for all cities in a province.
- *     parameters:
- *       - in: path
- *         name: province
- *         required: true
- *         schema:
- *           type: string
- *         description: Province name (e.g., jawa-barat)
- *     responses:
- *       200:
- *         description: Success (Deprecated Message)
- */
-router.get('/:province', controller.getByProvince);
+// Province route removed
 
 /**
  * @swagger

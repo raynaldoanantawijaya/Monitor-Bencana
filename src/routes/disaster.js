@@ -13,17 +13,7 @@ const controller = require('../controllers/disaster');
  */
 router.get('/tsunami', controller.getTsunamiStatus);
 
-/**
- * @swagger
- * /disaster/volcano:
- *   get:
- *     summary: Get Volcano Activity List
- *     description: Scrapes MAGMA Indonesia for volcano status (Level I-IV). Returns static links if scraping fails.
- *     responses:
- *       200:
- *         description: Success
- */
-router.get('/volcano', controller.getVolcanoStatus);
+// Volcano route removed
 
 /**
  * @swagger
@@ -35,6 +25,9 @@ router.get('/volcano', controller.getVolcanoStatus);
  *       200:
  *         description: Success
  */
-router.get('/flood', controller.getFloodReports);
+router.get('/flood', (req, res, next) => {
+    res.set('Cache-Control', 'no-store'); // Ensure realtime
+    next();
+}, controller.getFloodReports);
 
 module.exports = router;

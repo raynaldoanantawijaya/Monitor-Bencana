@@ -1,5 +1,5 @@
 const axios = require('axios');
-const cheerio = require('cheerio');
+// const cheerio = require('cheerio'); // Removed
 const responseCreator = require('../utils/responseCreator');
 const topojson = require('topojson-client');
 
@@ -32,6 +32,29 @@ const mapFloodDepth = (level) => {
         case 4: return "> 150 cm";
         default: return "Tidak ada data";
     }
+};
+
+// Weather Fetcher for Flood Context (Data Penopang)
+const getLocalWeather = async (lat, lon) => {
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code&timezone=auto`;
+        const { data } = await axios.get(url);
+        return {
+            temp: data.current.temperature_2m,
+            precip: data.current.precipitation,
+            code: data.current.weather_code
+        };
+    } catch (e) { return null; }
+};
+
+const mapWeatherCode = (code) => {
+    if (code <= 3) return "Cerah/Berawan";
+    if (code <= 48) return "Berkabut";
+    if (code <= 67) return "Hujan Ringan/Sedang";
+    if (code <= 77) return "Salju/Es";
+    if (code <= 82) return "Hujan Lebat";
+    if (code <= 99) return "Badai Petir";
+    return "Tidak Diketahui";
 };
 
 // --- Controllers ---
@@ -107,13 +130,13 @@ const getVolcanoStatus = async (req, res) => {
 
 const getFloodReports = async (req, res) => {
     const regions = [
-        { code: 'ID-JK', name: 'Jakarta' },
-        { code: 'ID-JB', name: 'Jawa Barat' },
-        { code: 'ID-JT', name: 'Jawa Tengah' },
-        { code: 'ID-JT-72', name: 'Kota Surakarta' }, // Added per request
-        { code: 'ID-JI', name: 'Jawa Timur' },
-        { code: 'ID-YO', name: 'Yogyakarta' },
-        { code: 'ID-BT', name: 'Banten' }
+        { code: 'ID-JK', name: 'Jakarta', lat: -6.2088, lon: 106.8456 },
+        { code: 'ID-JB', name: 'Jawa Barat', lat: -6.9175, lon: 107.6191 },
+        { code: 'ID-JT', name: 'Jawa Tengah', lat: -7.1510, lon: 110.1403 },
+        { code: 'ID-JT-72', name: 'Kota Surakarta', lat: -7.571, lon: 110.823 },
+        { code: 'ID-JI', name: 'Jawa Timur', lat: -7.5360, lon: 112.2384 },
+        { code: 'ID-YO', name: 'Yogyakarta', lat: -7.7956, lon: 110.3695 },
+        { code: 'ID-BT', name: 'Banten', lat: -6.4058, lon: 106.0640 }
     ];
 
     const allReports = [];
@@ -154,7 +177,7 @@ const getFloodReports = async (req, res) => {
             }
 
             // Extract useful info
-            features.forEach(f => {
+            await Promise.all(features.map(async f => {
                 const props = f.properties || {};
 
                 let locationName = props.name || props.text || "Lokasi tidak spesifik";
@@ -180,16 +203,31 @@ const getFloodReports = async (req, res) => {
                     }
                 }
 
+                // Support Data: Fetch Weather for this location
+                let weatherSupport = "Data cuaca tidak tersedia";
+                let weather = null;
+                if (coords) {
+                    weather = await getLocalWeather(coords.lat, coords.lon);
+                } else {
+                    weather = await getLocalWeather(region.lat, region.lon);
+                }
+
+                if (weather) {
+                    weatherSupport = `${mapWeatherCode(weather.code)} (Suhu ${weather.temp}°C, Curah hujan ${weather.precip}mm)`;
+                }
+
                 allReports.push({
                     region: region.name,
                     title: props.title || `Laporan Banjir - ${locationName}`,
                     location: locationName,
                     status: mapFloodLevel(props.state),
-                    height_desc: props.height ? `${props.height} cm` : mapFloodDepth(props.state),
+                    height_desc: props.height ? `${props.height} cm` : (props.water_depth ? `${props.water_depth} cm` : mapFloodDepth(props.state)),
+                    weather_support: weatherSupport, // NEW: Data Penopang
+                    image_url: props.image_url || props.image || null, // NEW: Image
                     coordinates: coords,
                     updated_at: props.created_at || new Date().toISOString()
                 });
-            });
+            }));
 
         } catch (e) {
             console.error(`Error ${region.name}:`, e.message);
@@ -201,7 +239,11 @@ const getFloodReports = async (req, res) => {
         return res.status(200).send(responseCreator({
             data: [],
             message: 'Tidak ada laporan banjir aktif saat ini.',
-            errors: errors // EXPOSE ERRORS FOR DEBUGGING
+            errors: errors,
+            meta: {
+                scanned_regions: regions.map(r => r.name),
+                total_reports: 0
+            }
         }));
     }
 
@@ -210,9 +252,9 @@ const getFloodReports = async (req, res) => {
         meta: {
             scanned_regions: regions.map(r => r.name),
             total_reports: allReports.length,
-            note: "Nama lokasi menggunakan ID Area karena API PetaBencana tidak menyediakan nama Kelurahan secara publik."
+            note: "Data ketinggian spesifik menggunakan estimasi dari status siaga jika laporan warga tidak tersedia. Data cuaca disertakan sebagai penopang."
         }
     }));
 };
 
-module.exports = { getTsunamiStatus, getVolcanoStatus, getFloodReports };
+module.exports = { getTsunamiStatus, getFloodReports };
